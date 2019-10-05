@@ -96,20 +96,25 @@ final class Magic {
     class Connectivity {
         static let shared = Connectivity()
         var status: MagicStatus {
-            return currentStatus
+            return network.status
         }
         
-        internal var lastActiveMagicNetwork: String?
-        internal var currentStatus: MagicStatus
+        protocol MagicNetwork {
+            internal var interfaces: [Any] = []
+            internal var networks: Set<Any> = []
+            internal var status: MagicStatus
+            internal var lastActiveMagicNetwork: String?
+            
+            func getMagicNetworks() -> Set<Any>
+            
+            func getCurrentInterface() -> CWInterface?
+        }
+        
+        private var network: MagicNetwork
+        
         internal var app_certificate: SecCertificate?
         
         #if os(macOS)
-        internal var currentInterface: CWInterface?
-        internal var interfaces: [CWInterface] = []
-        internal var networks: Set<CWNetwork> = []
-        internal let wifiClient = CWWiFiClient.shared()
-        internal var identity: SecIdentity? = nil
-        internal let queue = DispatchQueue(label: "MagicBackground", qos: .utility)
         
         private init() {
             currentStatus = .disconnected

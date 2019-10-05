@@ -18,14 +18,16 @@ extension CWNetwork {
     override open var description: String { return self.ssid! }
 }
 
-
-extension Magic.Connectivity {
+class macOSMagicNetwork: Magic.Connectivity.MagicNetwork {
+    internal let wifiClient = CWWiFiClient.shared()
+    internal var identity: SecIdentity? = nil
+    internal let queue = DispatchQueue(label: "MagicBackground", qos: .utility)
     
-    func getMagicNetworks() -> Set<CWNetwork> {
+    func getMagicNetworks() -> Set<Any> {
         return self.networks
     }
     
-    func getCurrentInterface() -> CWInterface? {
+    func getCurrentInterface() -> Any? {
         return self.currentInterface
     }
     
