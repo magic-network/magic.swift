@@ -1,7 +1,7 @@
 import XCTest
 
-import magic_swiftTests
+import MagicTests
 
 var tests = [XCTestCaseEntry]()
-tests += magic_swiftTests.allTests()
+tests += MagicTests.allTests()
 XCTMain(tests)

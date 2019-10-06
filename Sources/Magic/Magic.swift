@@ -27,7 +27,7 @@ enum MagicError: Error {
 }
 
 protocol MagicInterface {
-    
+    var lastActiveMagicNetwork: String? {get}
     var status: MagicStatus {get}
     
     func getMagicNetworks() -> [String: Any]
@@ -74,6 +74,8 @@ enum MagicStatus: CustomStringConvertible, Equatable {
     }
 }
 
+@available(iOS 12.0, *)
+@available(macOS 10.10, *)
 final class Magic {
     static let version = "0.0.1"
     
@@ -122,13 +124,14 @@ final class Magic {
         private var app_cert: SecCertificate?
 
         private init() {
-            #if os(macOS)
-            self.network = macOSMagicInterface()
-            #elseif os(iOS)
             
-            #else
-            
-            #endif
+                #if os(macOS)
+                self.network = macOSMagicInterface()
+                #elseif os(iOS)
+                self.network = iOSMagicInterface()
+                #else
+                //Linux
+                #endif
             installCertificate()
 
         }
@@ -224,7 +227,7 @@ final class Magic {
             return self.address
         }
         
-        func signWithTimestamp(timestamp: TimeInterval) -> String? {
+        func signWithTimestamp(timestamp: TimeInterval) -> String {
             let message = "auth_\(Int(timestamp))".sha3(.keccak256)
             let privateKey = getPrivateKey()
             let (compressedSignature, _) = SECP256K1.signForRecovery(hash: Data(hex:message), privateKey: Data(hex: privateKey), useExtraEntropy: false)

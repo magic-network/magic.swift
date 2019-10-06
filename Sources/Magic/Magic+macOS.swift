@@ -22,6 +22,7 @@ internal class macOSMagicInterface: MagicInterface, CWEventDelegate {
     private var interfaces: [Any] = []
     private var networks: [String: Any] = [:]
     internal var status: MagicStatus
+    internal var lastActiveMagicNetwork: String?
     
     private let wifiClient = CWWiFiClient.shared()
     private var identity: SecIdentity? = nil
@@ -142,11 +143,8 @@ internal class macOSMagicInterface: MagicInterface, CWEventDelegate {
         networkConfig.rememberJoinedNetworks = true
         
         let username = Magic.Account.shared.getUsername()
-        guard let password = Magic.Account.shared.signWithTimestamp(timestamp: TimeInterval()) else {
-            print("failed generation password")
-            Magic.EventBus.post(MagicStatus.error(.errorGeneratingPassword))
-            return
-        }
+        let timestamp = NSDate().timeIntervalSince1970
+        let password = "\(timestamp)-\(Magic.Account.shared.signWithTimestamp(timestamp: timestamp))"
         
         let config = generateMobileConfig(ssid: network.ssid!, username: username, password: password)
         if !CommandLineInstaller.installed(config: config) {
@@ -176,7 +174,7 @@ internal class macOSMagicInterface: MagicInterface, CWEventDelegate {
                 //In Swift, this method returns Void and is marked with the throws keyword to indicate that it throws an error in cases of failure.
                 try self.currentInterface!.associate(toEnterpriseNetwork: network, identity: self.identity, username: username, password: password)
                 Magic.EventBus.post(MagicStatus.connected)
-                self.self.status = .connected
+                self.status = .connected
             } catch {
                 print(error.localizedDescription)
                 Magic.EventBus.post(MagicStatus.error(.errorConnectingToNetwork))
