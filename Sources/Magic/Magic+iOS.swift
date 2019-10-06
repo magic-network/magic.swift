@@ -10,8 +10,23 @@ import Foundation
 import NetworkExtension
 import UIKit
 import UserNotifications
+import SystemConfiguration.CaptiveNetwork
 
-extension Magic.Connectivity {
+internal class iOSMagicNetwork: Magic.Connectivity.MagicNetwork {
+    private var lastActiveMagicNetwork: String?
+    
+    private init() {
+        status = .disconnected
+        installCertificate()
+        setupNetworkMonitor()
+        
+        if currentSSID().hasPrefix("magic") {
+            currentStatus = .connected
+            lastActiveMagicNetwork = currentSSID()
+            Magic.EventBus.post(MagicStatus.connected)
+        }
+    }
+    
     func getCurrentInterface() -> [Any]? {
         return NEHotspotHelper.supportedNetworkInterfaces()
     }
@@ -145,11 +160,7 @@ extension Magic.Connectivity {
         hotspotEAPSettings.setTrustedServerCertificates([app_certificate!])
         return hotspotEAPSettings
     }
-}
-
-import SystemConfiguration.CaptiveNetwork
-
-extension Magic.Connectivity {
+    
     func currentSSID() -> String {
         if let interfaces = CNCopySupportedInterfaces() {
             for interface in interfaces as! [CFString] {
@@ -163,7 +174,7 @@ extension Magic.Connectivity {
     }
 }
 
-fileprivate extension Magic.Connectivity {
+fileprivate extension iOSMagicNetwork {
     
     func setupNetworkMonitor() {
         // Can we get the gateways uri/ip to use for this?

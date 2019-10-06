@@ -18,111 +18,120 @@ extension CWNetwork {
     override open var description: String { return self.ssid! }
 }
 
-class macOSMagicNetwork: Magic.Connectivity.MagicNetwork {
-    internal let wifiClient = CWWiFiClient.shared()
-    internal var identity: SecIdentity? = nil
-    internal let queue = DispatchQueue(label: "MagicBackground", qos: .utility)
+internal class macOSMagicInterface: MagicInterface, CWEventDelegate {
+    private var interfaces: [Any] = []
+    private var networks: [String: Any] = [:]
+    internal var status: MagicStatus
     
-    func getMagicNetworks() -> Set<Any> {
+    private let wifiClient = CWWiFiClient.shared()
+    private var identity: SecIdentity? = nil
+    private let queue = DispatchQueue(label: "MagicBackground", qos: .utility)
+    private var currentInterface: CWInterface?
+    
+    init() {
+        self.status = .disconnected
+        
+        self.interfaces = wifiClient.interfaces() ?? []
+        
+        self.identity = getIdentity()
+        
+        if let defaultInterface = CWWiFiClient.shared().interface() {
+            self.currentInterface = defaultInterface
+            findNearbyMagicNetworks()
+            if let ssid = defaultInterface.ssid() {
+                if ssid.hasPrefix("magic") {
+                    self.status = .connected
+                }
+            }
+        }
+        
+        CWWiFiClient.shared().delegate = self
+        startMonitorEvent(self)
+    }
+    
+    func getMagicNetworks() -> [String: Any] {
         return self.networks
+    }
+    
+    func currentSSID() -> String? {
+        return self.currentInterface?.ssid()
     }
     
     func getCurrentInterface() -> Any? {
         return self.currentInterface
     }
     
-    func getAvailableInterfaces() -> [CWInterface] {
+    /**
+     Returns an array of CWInterfaces
+     */
+    func getAvailableInterfaces() -> [Any] {
         return self.interfaces
     }
     
     private func getIdentity() -> SecIdentity? {
-        //            let getquery: [String: Any] = [kSecClass as String: kSecClassIdentity,
-        //                                           kSecAttrLabel as String: "Magic Identity",
-        //                                           kSecReturnRef as String: kCFBooleanTrue]
-        //            var item: CFTypeRef?
-        //            let status = SecItemCopyMatching(getquery as CFDictionary, &item)
-        //            if status != errSecSuccess {
-        //                print("Error getting Identity \(SecCopyErrorMessageString(status, nil)!)")
-        guard let certificate = grabBundleCertificate() else {
-            print("Could not get certificate from app bundle...")
-            return nil
-        }
-        
-        let addquery: [String: Any] = [kSecClass as String: kSecClassCertificate,
-                                       kSecValueRef as String: certificate,
-                                       kSecAttrLabel as String: "Magic Certificate"]
-        
-        let add_status = SecItemAdd(addquery as CFDictionary, nil)
-        if add_status == errSecSuccess {
-            var identity: SecIdentity?
-            let status = SecIdentityCreateWithCertificate(nil, certificate, &identity)
-            
-            if status == errSecSuccess {
-                let addquery: [String: Any] = [kSecClass as String: kSecClassIdentity,
-                                               kSecValueRef as String: identity!,
-                                               kSecAttrLabel as String: "Magic Identity"]
-                
-                let add_status = SecItemAdd(addquery as CFDictionary, nil)
-                guard add_status == errSecSuccess else {
-                    print("Could not install identity to keychain \(SecCopyErrorMessageString(add_status, nil)!)")
-                    return nil
-                }
-                print("Installed identity to keychain")
-                return identity
-            } else {
-                print("Could Not Create Identity: \(SecCopyErrorMessageString(status, nil)!)")
+        let getquery: [String: Any] = [kSecClass as String: kSecClassIdentity,
+                                       kSecAttrLabel as String: "Magic Identity",
+                                       kSecReturnRef as String: kCFBooleanTrue]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(getquery as CFDictionary, &item)
+        if status != errSecSuccess {
+            print("Error getting Identity \(SecCopyErrorMessageString(status, nil)!)")
+            guard let certificate = Magic.Connectivity.shared.magicCertificate else {
+                print("Could not get certificate from app bundle...")
                 return nil
             }
+            
+            let addquery: [String: Any] = [kSecClass as String: kSecClassCertificate,
+                                           kSecValueRef as String: certificate,
+                                           kSecAttrLabel as String: "Magic Certificate"]
+            
+            let add_status = SecItemAdd(addquery as CFDictionary, nil)
+            if add_status == errSecSuccess {
+                var identity: SecIdentity?
+                let status = SecIdentityCreateWithCertificate(nil, certificate, &identity)
+                
+                if status == errSecSuccess {
+                    let addquery: [String: Any] = [kSecClass as String: kSecClassIdentity,
+                                                   kSecValueRef as String: identity!,
+                                                   kSecAttrLabel as String: "Magic Identity"]
+                    
+                    let add_status = SecItemAdd(addquery as CFDictionary, nil)
+                    guard add_status == errSecSuccess else {
+                        print("Could not install identity to keychain \(SecCopyErrorMessageString(add_status, nil)!)")
+                        return nil
+                    }
+                    print("Installed identity to keychain")
+                    return identity
+                } else {
+                    print("Could Not Create Identity: \(SecCopyErrorMessageString(status, nil)!)")
+                    return nil
+                }
+            }
+            return nil
+            
         }
-        return nil
-        
-        //            }
-        //            return (item as! SecIdentity)
+        return (item as! SecIdentity)
     }
     
-//    private func installOrRetrieveCertificate() -> SecCertificate? {
-//
-//        let getquery: [String: Any] = [kSecClass as String: kSecClassCertificate,
-//                                       kSecAttrLabel as String: "Magic Certificate",
-//                                       kSecReturnRef as String: kCFBooleanTrue]
-//        var item: CFTypeRef?
-//        let status = SecItemCopyMatching(getquery as CFDictionary, &item)
-//        if status != errSecSuccess {
-//            print("Error getting certificate \(SecCopyErrorMessageString(status, nil)!)")
-//            guard let certificate = grabBundleCertificate() else {
-//                print("Could not get certificate from app bundle...")
-//                return nil
-//            }
-//            let addquery: [String: Any] = [kSecClass as String: kSecClassCertificate,
-//                                           kSecValueRef as String: certificate,
-//                                           kSecAttrLabel as String: "Magic Certificate"]
-//
-//            let add_status = SecItemAdd(addquery as CFDictionary, nil)
-//            guard add_status == errSecSuccess else {
-//                print("Could not install certificate to keychain \(SecCopyErrorMessageString(add_status, nil)!)")
-//                return nil
-//            }
-//            print("Installed certificate to keychain")
-//            return certificate
-//        }
-//        print("certificate is already installed")
-//        return (item as! SecCertificate)
-//    }
-    
     // Fetch detectable WIFI networks
-    func findNetworks(ssid: Data?) {
+    func findNearbyMagicNetworks() {
         do {
-            self.networks = try currentInterface!.scanForNetworks(withSSID: ssid)
+            let foundNetworks = try currentInterface!.scanForNetworks(withSSID: nil)
+            self.networks = [:]
+            for network in foundNetworks {
+                if network.ssid?.hasPrefix("magic") ?? false {
+                    self.networks[network.ssid!] = network
+                }
+            }
         } catch let error as NSError {
             print("Error: \(error.localizedDescription)")
         }
     }
     
-    func connectToNetwork(network: Any, username: String, password: String, completion: @escaping (_ error: NetworkError?) -> Void) {
-        guard let network = network as? CWNetwork else {
+    func connect(ssid: String) {
+        guard let network = self.networks[ssid] as? CWNetwork else {
             return
         }
-        print("Attempting to connect with username: \(username) and password: \(password)")
         let networkProfile = CWMutableNetworkProfile()
         networkProfile.ssidData = network.ssidData
         networkProfile.security = .wpa2Enterprise
@@ -132,13 +141,19 @@ class macOSMagicNetwork: Magic.Connectivity.MagicNetwork {
         networkConfig.requireAdministratorForAssociation = false
         networkConfig.rememberJoinedNetworks = true
         
+        let username = Magic.Account.shared.getUsername()
+        guard let password = Magic.Account.shared.signWithTimestamp(timestamp: TimeInterval()) else {
+            print("failed generation password")
+            Magic.EventBus.post(MagicStatus.error(.errorGeneratingPassword))
+            return
+        }
+        
         let config = generateMobileConfig(ssid: network.ssid!, username: username, password: password)
         if !CommandLineInstaller.installed(config: config) {
             let result = CommandLineInstaller.install(mobileConfig: config, configName: "magic")
             if result != .success {
                 print("failed installing network profile")
                 Magic.EventBus.post(MagicStatus.error(.errorInstallingConfiguration))
-                completion(.errorInstallingConfiguration)
                 return
             }
             
@@ -152,7 +167,6 @@ class macOSMagicNetwork: Magic.Connectivity.MagicNetwork {
             catch {
                 print("Authorization failed")
                 Magic.EventBus.post(MagicStatus.error(.errorAuthorizingConfiguration))
-                completion(.errorAuthorizingConfiguration)
                 return
             }
         }
@@ -162,12 +176,10 @@ class macOSMagicNetwork: Magic.Connectivity.MagicNetwork {
                 //In Swift, this method returns Void and is marked with the throws keyword to indicate that it throws an error in cases of failure.
                 try self.currentInterface!.associate(toEnterpriseNetwork: network, identity: self.identity, username: username, password: password)
                 Magic.EventBus.post(MagicStatus.connected)
-                self.currentStatus = .connected
-                completion(.success)
+                self.self.status = .connected
             } catch {
                 print(error.localizedDescription)
                 Magic.EventBus.post(MagicStatus.error(.errorConnectingToNetwork))
-                completion(.errorConnectingToNetwork)
             }
         }
     }
@@ -175,7 +187,7 @@ class macOSMagicNetwork: Magic.Connectivity.MagicNetwork {
     func disconnect() {
         self.currentInterface?.disassociate()
         Magic.EventBus.post(MagicStatus.disconnected)
-        self.currentStatus = .disconnected
+        self.status = .disconnected
     }
     
     private func generateMobileConfig(ssid: String, username: String, password: String) -> MobileConfig {
@@ -221,6 +233,7 @@ class macOSMagicNetwork: Magic.Connectivity.MagicNetwork {
         )
     }
     
+    // CWDelegate functions
     internal func startMonitorEvent(_ delegate: CWEventDelegate) {
         do {
             CWWiFiClient.shared().delegate = delegate
@@ -242,68 +255,73 @@ class macOSMagicNetwork: Magic.Connectivity.MagicNetwork {
         
     }
     
-    func stopMonitorEvent() {
+    internal func stopMonitorEvent() {
         do {
             try CWWiFiClient.shared().stopMonitoringAllEvents()
         } catch {
             print("Stop error: \(error.localizedDescription)")
         }
     }
-}
-
-extension Magic.Connectivity: CWEventDelegate {
     
-    func clientConnectionInterrupted() {
+    
+    
+    internal func clientConnectionInterrupted() {
         /* Tells the delegate that the connection to the Wi-Fi subsystem is temporarily interrupted. */
         print("clientConnectionInterrupted")
     }
     
-    func clientConnectionInvalidated() {
+    internal func clientConnectionInvalidated() {
         /* Tells the delegate that the connection to the Wi-Fi subsystem is permanently invalidated. */
         print("clientConnectionInvalidated")
     }
     
-    func countryCodeDidChangeForWiFiInterface(withName interfaceName: String) {
+    internal func countryCodeDidChangeForWiFiInterface(withName interfaceName: String) {
         /* Tells the delegate that the currently adopted country code has changed. */
         print("countryCodeDidChangeForWiFiInterface")
     }
     
-    func linkDidChangeForWiFiInterface(withName interfaceName: String) {
+    internal func linkDidChangeForWiFiInterface(withName interfaceName: String) {
         /* Tells the delegate that the Wi-Fi link state changed.  */
         print("linkDidChangeForWiFiInterface")
     }
     
-    func linkQualityDidChangeForWiFiInterface(withName interfaceName: String, rssi: Int, transmitRate: Double) {
+    internal func linkQualityDidChangeForWiFiInterface(withName interfaceName: String, rssi: Int, transmitRate: Double) {
         /* */
         print("Intf (\(interfaceName)) link qualitity changed RSSI:\(rssi), rate:\(transmitRate)")
     }
     
-    func modeDidChangeForWiFiInterface(withName interfaceName: String) {
+    internal func modeDidChangeForWiFiInterface(withName interfaceName: String) {
         print("modeDidChangeForWiFiInterface")
     }
     
-    func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {
+    internal func powerStateDidChangeForWiFiInterface(withName interfaceName: String) {
         print("powerStateDidChangeForWiFiInterface")
     }
     
-    func rangingReportEventForWiFiInterface(withName interfaceName: String, data rangingData: [Any], error err: Error) {
+    internal func rangingReportEventForWiFiInterface(withName interfaceName: String, data rangingData: [Any], error err: Error) {
         print("rangingReportEventForWiFiInterface")
     }
     
-    func scanCacheUpdatedForWiFiInterface(withName interfaceName: String) {
+    internal func scanCacheUpdatedForWiFiInterface(withName interfaceName: String) {
         do {
-            self.networks = try currentInterface!.scanForNetworks(withSSID: nil)
+            let foundNetworks = try currentInterface!.scanForNetworks(withSSID: nil)
+            self.networks = [:]
+            for network in foundNetworks {
+                if network.ssid?.hasPrefix("magic") ?? false {
+                    self.networks[network.ssid!] = network
+                }
+            }
             Magic.EventBus.post(MagicStatus.scanCompleted)
         } catch let error as NSError {
             print("Error: \(error.localizedDescription)")
         }
     }
     
-    func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
+    internal func ssidDidChangeForWiFiInterface(withName interfaceName: String) {
         // If the ssid changed and its not a magic one set things as disconnected
         if currentInterface?.ssid() != nil && Magic.Connectivity.shared.status == .connected {
             if !currentInterface!.ssid()!.hasPrefix("magic") {
-                Magic.Connectivity.shared.currentStatus = .disconnected
+                status = .disconnected
                 Magic.EventBus.post(MagicStatus.disconnected)
             }
         }

@@ -8,15 +8,10 @@
 import Foundation
 import web3swift
 
-#if os(macOS)
-import CoreWLAN
-#elseif os(iOS)
-import NetworkExtension
-#endif
-
 public enum NetworkError: Error {
     case success
     case noEAPSettingsProvided
+    case errorGeneratingPassword
     case errorGettingConfiguration
     case errorConnectingToNetwork
     case errorInstallingConfiguration
@@ -29,6 +24,25 @@ enum MagicError: Error {
     case keychainDataError
     case keychainDataMismatch
     case unhandledError(status: OSStatus)
+}
+
+protocol MagicInterface {
+    
+    var status: MagicStatus {get}
+    
+    func getMagicNetworks() -> [String: Any]
+    
+    func getCurrentInterface() -> Any?
+    
+    func getAvailableInterfaces() -> [Any]
+    
+    func findNearbyMagicNetworks()
+    
+    func currentSSID() -> String?
+    
+    func connect(ssid: String)
+    
+    func disconnect()
 }
 
 enum MagicStatus: CustomStringConvertible, Equatable {
@@ -99,60 +113,26 @@ final class Magic {
             return network.status
         }
         
-        protocol MagicNetwork {
-            internal var interfaces: [Any] = []
-            internal var networks: Set<Any> = []
-            internal var status: MagicStatus
-            internal var lastActiveMagicNetwork: String?
-            
-            func getMagicNetworks() -> Set<Any>
-            
-            func getCurrentInterface() -> CWInterface?
+        var magicCertificate: SecCertificate? {
+            return app_cert
         }
         
-        private var network: MagicNetwork
+        private var network: MagicInterface
         
-        internal var app_certificate: SecCertificate?
-        
-        #if os(macOS)
-        
+        private var app_cert: SecCertificate?
+
         private init() {
-            currentStatus = .disconnected
+            #if os(macOS)
+            self.network = macOSMagicInterface()
+            #elseif os(iOS)
             
-            self.interfaces = wifiClient.interfaces() ?? []
+            #else
             
-            self.identity = getIdentity()
-            
-            if let defaultInterface = CWWiFiClient.shared().interface() {
-                self.currentInterface = defaultInterface
-                findNetworks(ssid: nil)
-                if let ssid = defaultInterface.ssid() {
-                    if ssid.hasPrefix("magic") {
-                        currentStatus = .connected
-                    }
-                }
-            }
-            
-            CWWiFiClient.shared().delegate = self
-            startMonitorEvent(self)
-        }
-        #endif
-        
-        #if os(iOS)
-        private var lastActiveMagicNetwork: String?
-        
-        private init() {
-            currentStatus = .disconnected
+            #endif
             installCertificate()
-            setupNetworkMonitor()
-            
-            if currentSSID().hasPrefix("magic") {
-                currentStatus = .connected
-                lastActiveMagicNetwork = currentSSID()
-                Magic.EventBus.post(MagicStatus.connected)
-            }
+
         }
-        #endif
+        
         // https://developer.apple.com/documentation/security/certificate_key_and_trust_services/certificates/storing_a_certificate_in_the_keycha
         private func installCertificate() {
             
@@ -167,7 +147,7 @@ final class Magic {
                     print("Could not get certificate from app bundle...")
                     return
                 }
-                app_certificate = certificate
+                app_cert = certificate
                 let addquery: [String: Any] = [kSecClass as String: kSecClassCertificate,
                                                kSecValueRef as String: certificate,
                                                kSecAttrLabel as String: "Magic Certificate"]
@@ -181,7 +161,7 @@ final class Magic {
                 return
             }
             print("certificate is already installed")
-            app_certificate = (item as! SecCertificate)
+            app_cert = (item as! SecCertificate)
         }
         
         private func grabBundleCertificate() -> SecCertificate? {
