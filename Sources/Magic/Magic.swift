@@ -10,6 +10,7 @@ import web3swift
 
 public enum NetworkError: Error {
     case success
+    case invalidNetworkName
     case noEAPSettingsProvided
     case errorGeneratingPassword
     case errorGettingConfiguration

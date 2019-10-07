@@ -131,6 +131,8 @@ internal class macOSMagicInterface: MagicInterface, CWEventDelegate {
     
     func connect(ssid: String) {
         guard let network = self.networks[ssid] as? CWNetwork else {
+            print("That is not a known network")
+            Magic.EventBus.post(MagicStatus.error(.invalidNetworkName))
             return
         }
         let networkProfile = CWMutableNetworkProfile()
@@ -144,9 +146,9 @@ internal class macOSMagicInterface: MagicInterface, CWEventDelegate {
         
         let username = Magic.Account.shared.getUsername()
         let timestamp = NSDate().timeIntervalSince1970
-        let password = "\(timestamp)-\(Magic.Account.shared.signWithTimestamp(timestamp: timestamp))"
-        
-        let config = generateMobileConfig(ssid: network.ssid!, username: username, password: password)
+        let password = "\(Int(timestamp))-\(Magic.Account.shared.signWithTimestamp(timestamp: timestamp))"
+                
+        let config = generateMobileConfig(ssid: ssid, username: username, password: password)
         if !CommandLineInstaller.installed(config: config) {
             let result = CommandLineInstaller.install(mobileConfig: config, configName: "magic")
             if result != .success {
