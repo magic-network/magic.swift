@@ -18,7 +18,7 @@ public enum NetworkError: Error {
     case errorAuthorizingConfiguration
 }
 
-enum MagicError: Error {
+public enum MagicError: Error {
     case noAccount
     case failedToSaveToKeychain
     case keychainDataError
@@ -45,7 +45,7 @@ protocol MagicInterface {
     func disconnect()
 }
 
-enum MagicStatus: CustomStringConvertible, Equatable {
+public enum MagicStatus: CustomStringConvertible, Equatable {
     case connected
     case disconnected
     case pending
@@ -54,7 +54,7 @@ enum MagicStatus: CustomStringConvertible, Equatable {
     case scanCompleted
     case error(NetworkError)
     
-    var description : String {
+    public var description : String {
         switch self {
         case .connected:
             return "co.magic.connected"
@@ -76,7 +76,7 @@ enum MagicStatus: CustomStringConvertible, Equatable {
 
 @available(iOS 12.0, *)
 @available(macOS 10.10, *)
-final class Magic {
+public final class Magic {
     static let version = "0.0.1"
     
     static func clamp<T: Comparable>(min: T, max: T, input: T) -> T {
@@ -103,15 +103,15 @@ final class Magic {
         // just make init private so we don't have people making multiple copies of the magic class
     }
     
-    static func register() {
+    public static func register() {
         //initialize magic singletons
         Connectivity.shared
         Account.shared
     }
     
-    class Connectivity {
-        static let shared = Connectivity()
-        var status: MagicStatus {
+    public class Connectivity {
+        public  static let shared = Connectivity()
+        public var status: MagicStatus {
             return network.status
         }
         
@@ -134,6 +134,34 @@ final class Magic {
                 #endif
             installCertificate()
 
+        }
+        
+        public func getMagicNetworks() -> [String: Any] {
+            return self.network.getMagicNetworks()
+        }
+        
+        public func getCurrentInterface() -> Any? {
+            return self.network.getCurrentInterface()
+        }
+        
+        public func getAvailableInterfaces() -> [Any] {
+            return self.network.getAvailableInterfaces()
+        }
+        
+        public func findNearbyMagicNetworks() {
+            self.network.findNearbyMagicNetworks()
+        }
+        
+        public func currentSSID() -> String? {
+            self.network.currentSSID()
+        }
+        
+        public func connect(ssid: String) {
+            self.network.connect(ssid: ssid)
+        }
+        
+        public func disconnect() {
+            self.network.disconnect()
         }
         
         // https://developer.apple.com/documentation/security/certificate_key_and_trust_services/certificates/storing_a_certificate_in_the_keycha
@@ -187,7 +215,7 @@ final class Magic {
         }
     }
     
-    class Account {
+    public class Account {
         public static let shared = Account()
         private var address: String = ""
         private var key: Data = Data()
@@ -303,7 +331,7 @@ final class Magic {
         }
     }
     
-    open class EventBus {
+    public class EventBus {
         
         struct Static {
             static let instance = Magic.EventBus()
@@ -323,47 +351,47 @@ final class Magic {
         ////////////////////////////////////
         
         
-        open class func post(_ status: MagicStatus, sender: Any? = nil) {
+        public class func post(_ status: MagicStatus, sender: Any? = nil) {
             NotificationCenter.default.post(name: Notification.Name(rawValue: status.description), object: sender)
         }
         
-        open class func post(_ name: String, sender: Any? = nil) {
+        public class func post(_ name: String, sender: Any? = nil) {
             NotificationCenter.default.post(name: Notification.Name(rawValue: name), object: sender)
         }
         
-        open class func post(_ name: String, sender: NSObject?) {
+        public class func post(_ name: String, sender: NSObject?) {
             NotificationCenter.default.post(name: Notification.Name(rawValue: name), object: sender)
         }
         
-        open class func post(_ name: String, sender: Any? = nil, userInfo: [AnyHashable: Any]?) {
+        public class func post(_ name: String, sender: Any? = nil, userInfo: [AnyHashable: Any]?) {
             NotificationCenter.default.post(name: Notification.Name(rawValue: name), object: sender, userInfo: userInfo)
         }
         
-        open class func postToMainThread(_ status: MagicStatus, sender: Any? = nil) {
+        public class func postToMainThread(_ status: MagicStatus, sender: Any? = nil) {
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: Notification.Name(rawValue: status.description), object: sender)
             }
         }
         
-        open class func postToMainThread(_ name: String, sender: Any? = nil) {
+        public class func postToMainThread(_ name: String, sender: Any? = nil) {
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: Notification.Name(rawValue: name), object: sender)
             }
         }
         
-        open class func postToMainThread(_ name: String, sender: NSObject?) {
+        public class func postToMainThread(_ name: String, sender: NSObject?) {
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: Notification.Name(rawValue: name), object: sender)
             }
         }
         
-        open class func postToMainThread(_ name: String, sender: Any? = nil, userInfo: [AnyHashable: Any]?) {
+        public class func postToMainThread(_ name: String, sender: Any? = nil, userInfo: [AnyHashable: Any]?) {
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: Notification.Name(rawValue: name), object: sender, userInfo: userInfo)
             }
         }
         
-        open class func postToMainThread(_ status: MagicStatus, sender: Any? = nil, userInfo: [AnyHashable: Any]?) {
+        public class func postToMainThread(_ status: MagicStatus, sender: Any? = nil, userInfo: [AnyHashable: Any]?) {
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: Notification.Name(rawValue: status.description), object: sender, userInfo: userInfo)
             }
@@ -376,7 +404,7 @@ final class Magic {
         ////////////////////////////////////
         
         @discardableResult
-        open class func on(_ target: AnyObject, name: String, sender: Any? = nil, queue: OperationQueue?, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
+        public class func on(_ target: AnyObject, name: String, sender: Any? = nil, queue: OperationQueue?, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
             let id = UInt(bitPattern: ObjectIdentifier(target))
             let observer = NotificationCenter.default.addObserver(forName: NSNotification.Name(rawValue: name), object: sender, queue: queue, using: handler)
             let namedObserver = NamedObserver(observer: observer, name: name)
@@ -393,22 +421,22 @@ final class Magic {
         }
         
         @discardableResult
-        open class func onMainThread(_ target: AnyObject, status: MagicStatus, sender: Any? = nil, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
+        public class func onMainThread(_ target: AnyObject, status: MagicStatus, sender: Any? = nil, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
             return Magic.EventBus.on(target, name: status.description, sender: sender, queue: OperationQueue.main, handler: handler)
         }
         
         @discardableResult
-        open class func onMainThread(_ target: AnyObject, name: String, sender: Any? = nil, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
+        public class func onMainThread(_ target: AnyObject, name: String, sender: Any? = nil, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
             return Magic.EventBus.on(target, name: name, sender: sender, queue: OperationQueue.main, handler: handler)
         }
         
         @discardableResult
-        open class func onBackgroundThread(_ target: AnyObject, status: MagicStatus, sender: Any? = nil, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
+        public class func onBackgroundThread(_ target: AnyObject, status: MagicStatus, sender: Any? = nil, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
             return Magic.EventBus.on(target, name: status.description, sender: sender, queue: OperationQueue(), handler: handler)
         }
         
         @discardableResult
-        open class func onBackgroundThread(_ target: AnyObject, name: String, sender: Any? = nil, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
+        public class func onBackgroundThread(_ target: AnyObject, name: String, sender: Any? = nil, handler: @escaping ((Notification?) -> Void)) -> NSObjectProtocol {
             return Magic.EventBus.on(target, name: name, sender: sender, queue: OperationQueue(), handler: handler)
         }
         
@@ -416,7 +444,7 @@ final class Magic {
         // Unregister
         ////////////////////////////////////
         
-        open class func unregister(_ target: AnyObject) {
+        public class func unregister(_ target: AnyObject) {
             let id = UInt(bitPattern: ObjectIdentifier(target))
             let center = NotificationCenter.default
             
@@ -429,7 +457,7 @@ final class Magic {
             }
         }
         
-        open class func unregister(_ target: AnyObject, name: String) {
+        public class func unregister(_ target: AnyObject, name: String) {
             let id = UInt(bitPattern: ObjectIdentifier(target))
             let center = NotificationCenter.default
             
